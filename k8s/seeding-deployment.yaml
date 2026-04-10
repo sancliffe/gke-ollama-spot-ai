@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-seeder-temp  # New name to bypass backoff
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama-seeder
+  template:
+    metadata:
+      labels:
+        app: ollama-seeder
+    spec:
+      containers:
+      - name: ollama
+        image: ollama/ollama:0.1.32
+        resources:
+          limits:
+            cpu: "1"
+            memory: "4Gi"
+          requests:
+            cpu: "1"
+            memory: "4Gi"
+        volumeMounts:
+        - name: ollama-data
+          mountPath: /root/.ollama
+      volumes:
+      - name: ollama-data
+        persistentVolumeClaim:
+          claimName: ollama-storage
