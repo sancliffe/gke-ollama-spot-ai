@@ -2,10 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ollama-gpu
-  labels:
-    app: ollama
 spec:
-  replicas: 1
+  replicas: 1  # Manual scale of 1 for seeding
   selector:
     matchLabels:
       app: ollama
@@ -14,20 +12,16 @@ spec:
       labels:
         app: ollama
     spec:
-      # REMOVE nodeSelector and tolerations for cloud.google.com/gke-spot
       containers:
       - name: ollama
         image: ollama/ollama:0.1.32
         resources:
           limits:
-            cpu: "1"      # Use 1 core for a reliable pull
+            cpu: "2"
             memory: "4Gi"
           requests:
-            cpu: "1"
+            cpu: "2"
             memory: "4Gi"
-        ports:
-        - containerPort: 11434
-          name: ollama-api
         volumeMounts:
         - name: ollama-data
           mountPath: /root/.ollama
