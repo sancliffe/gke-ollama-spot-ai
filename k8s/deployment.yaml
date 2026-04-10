@@ -5,7 +5,7 @@ metadata:
   labels:
     app: ollama
 spec:
-  replicas: 1  # Forcing to 1 so we can seed
+  replicas: 1
   selector:
     matchLabels:
       app: ollama
@@ -14,17 +14,16 @@ spec:
       labels:
         app: ollama
     spec:
-      nodeSelector:
-        cloud.google.com/gke-spot: "true"
+      # REMOVE nodeSelector and tolerations for cloud.google.com/gke-spot
       containers:
       - name: ollama
         image: ollama/ollama:0.1.32
         resources:
           limits:
-            cpu: "2"
+            cpu: "1"      # Use 1 core for a reliable pull
             memory: "4Gi"
           requests:
-            cpu: "2"
+            cpu: "1"
             memory: "4Gi"
         ports:
         - containerPort: 11434
