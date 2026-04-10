@@ -5,8 +5,7 @@ metadata:
   labels:
     app: ollama
 spec:
-  # Replicas managed by KEDA. Initial state is 0 for scale-to-zero.
-  replicas: 0
+  replicas: 1  # Forcing to 1 so we can seed
   selector:
     matchLabels:
       app: ollama
@@ -15,65 +14,25 @@ spec:
       labels:
         app: ollama
     spec:
-      # Ensures the pod remains ready when scaled up
-      restartPolicy: Always
-      
-      # Provides 25 seconds for Ollama to shut down gracefully during Spot preemption
-      terminationGracePeriodSeconds: 25
-      
-      # AUTOPILOT COMPLIANT NODE SELECTOR:
-      # Restricted 'gke-provisioning' key removed to pass GKE Warden validation.
       nodeSelector:
         cloud.google.com/gke-spot: "true"
-      
       containers:
       - name: ollama
         image: ollama/ollama:0.1.32
-        
         resources:
           limits:
             cpu: "2"
-            memory: "8Gi"
+            memory: "4Gi"
           requests:
             cpu: "2"
-            memory: "8Gi"
-        
+            memory: "4Gi"
         ports:
         - containerPort: 11434
           name: ollama-api
-          protocol: TCP
-        
-        # Standard health probes to verify service readiness
-        readinessProbe:
-          httpGet:
-            path: "/"
-            port: ollama-api
-            scheme: HTTP
-          initialDelaySeconds: 5
-          periodSeconds: 10
-          timeoutSeconds: 2
-          failureThreshold: 3
-        
-        livenessProbe:
-          httpGet:
-            path: "/"
-            port: ollama-api
-            scheme: HTTP
-          initialDelaySeconds: 15
-          periodSeconds: 20
-          timeoutSeconds: 2
-          failureThreshold: 3
-          
-        env:
-        - name: OLLAMA_HOST
-          value: "0.0.0.0:11434"
-        
         volumeMounts:
         - name: ollama-data
           mountPath: /root/.ollama
-      
       volumes:
       - name: ollama-data
         persistentVolumeClaim:
           claimName: ollama-storage
-          readOnly: false
