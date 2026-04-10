@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-gpu
+  labels:
+    app: ollama
+spec:
+  # Replicas are managed by KEDA. Set to 0 for a scale-to-zero default.
+  replicas: 0
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      # KEDA manages replicas; Pod restart: always keep one instance ready when scaled up
+      restartPolicy: Always
+      
+      # Spot VMs get 30-second preemption notice; give Ollama time to gracefully shutdown
+      terminationGracePeriodSeconds: 25
+      
+      # Restrict pods to Spot GPU nodes for cost optimization
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"          # Spot VM cost discount (60-91%)
+        cloud.google.com/gke-provisioning: spot    # Spot preemptible instances
+        cloud.google.com/gke-accelerator: nvidia-l4  # 24GB VRAM GPU for LLM inference
+      
+      # SECURITY: Consider running as non-root in production
+      # Requires creating a custom Ollama image with a non-root user
+      # securityContext:
+      #   runAsUser: 1001
+      #   fsGroup: 1001
+      
+      containers:
+      - name: ollama
+        # Image: Ollama published on DockerHub
+        # Version: Pinned for reproducible deployments (update when stable releases available)
+        image: ollama/ollama:0.1.32
+        
+        resources:
+          # Resource limits prevent pod from exceeding node capacity
+          limits:
+            nvidia.com/gpu: "1"      # Single L4 GPU
+            cpu: "2"                  # 2 CPU cores (inference bound)
+            memory: "8Gi"             # 8GB RAM for model processing
+          # Requests match limits for guaranteed resource reservation
+          requests:
+            nvidia.com/gpu: "1"
+            cpu: "2"
+            memory: "8Gi"
+        ports:
+        - containerPort: 11434
+          name: ollama-api
+          protocol: TCP
+        
+        # Health probes ensure Kubernetes detects pod readiness and liveness
+        # Both use HTTP to check Ollama's health endpoint
+        readinessProbe:
+          httpGet:
+            path: "/"        # Ollama health endpoint (returns 200 OK)
+            port: ollama-api
+            scheme: HTTP
+          initialDelaySeconds: 5   # Wait 5s before first probe (container startup)
+          periodSeconds: 10        # Check readiness every 10s
+          timeoutSeconds: 2        # Fail if probe takes >2s
+          failureThreshold: 3      # Fail pod after 3 consecutive failures
+        
+        # Liveness detects if Ollama process is hung/deadlocked
+        livenessProbe:
+          httpGet:
+            path: "/"
+            port: ollama-api
+            scheme: HTTP
+          initialDelaySeconds: 15  # Wait 15s before first probe (app initialization)
+          periodSeconds: 20        # Check liveness every 20s
+          timeoutSeconds: 2
+          failureThreshold: 3      # Restart pod after 3 consecutive failures
+        env:
+        # OLLAMA_HOST: Bind to all interfaces so Kubernetes service can access it
+        - name: OLLAMA_HOST
+          value: "0.0.0.0:11434"
+        
+        volumeMounts:
+        # Mount persistent volume for model storage
+        # Survives pod restarts and Spot preemptions
+        - name: ollama-data
+          mountPath: /root/.ollama
+      
+      volumes:
+      # Reference the Persistent Volume Claim (defined in storage.yaml)
+      # This 50GB disk persists across pod/node failures
+      - name: ollama-data
+        persistentVolumeClaim:
+          claimName: ollama-storage
+          readOnly: false  # Ollama needs write access to cache models

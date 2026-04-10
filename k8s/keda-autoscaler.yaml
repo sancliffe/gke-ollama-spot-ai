@@ -1,0 +1,43 @@
+# HTTPScaledObject: Configures KEDA HTTP Add-on for intelligent traffic-based autoscaling
+# How it works:
+# 1. HTTP add-on intercepts traffic destined for Ollama
+# 2. If replicas == 0, it queues the request (won't return error)
+# 3. It signals KEDA to scale deployment to 1 replica
+# 4. Once pod is ready, queued request is forwarded
+# Result: True scale-to-zero when idle = zero cost between requests
+
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: ollama-http-scaler
+  namespace: default
+spec:
+  # The hostname used to route traffic to Ollama
+  # Set your DNS provider to point this hostname to KEDA's interceptor LoadBalancer IP
+  # For local testing without DNS: use curl --resolve ollama.gke.dev:80:EXTERNAL_IP
+  # Example:
+  #   export KEDA_IP=$(kubectl get svc -n keda keda-http-add-on-interceptor-proxy -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  #   curl --resolve ollama.gke.dev:80:$KEDA_IP http://ollama.gke.dev/api/tags
+  host: ollama.gke.dev
+  scaleTargetRef:
+    # Deployment to scale based on HTTP traffic
+    name: ollama-gpu
+    # Internal ClusterIP service that receives forwarded traffic
+    service: ollama-service
+    # Service port for traffic routing
+    port: 80
+  
+  replicas:
+    min: 0      # Scale down to 0 when idle (saves ~$0.15/hr in GPU costs)
+    max: 1      # Never exceed 1 GPU instance (we only have 1 GPU per node)
+  
+  # KEDA ScaledObject configuration (KEDA generates this automatically)
+  scaledObject:
+    # cooldownPeriod: Wait this long after last request before scaling to 0
+    # 300s = 5 minutes (balances: cold-start delay vs. idle cost savings)
+    # Increase to 600s if cold-start delays are problematic
+    cooldownPeriod: 300
+    
+    # pollingInterval: How often KEDA checks for active HTTP connections
+    # 30s = check every 30 seconds (appropriate for this use case)
+    pollingInterval: 30

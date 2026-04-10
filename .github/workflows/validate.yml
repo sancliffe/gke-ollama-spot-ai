@@ -1,0 +1,111 @@
+name: Validate & Lint
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    name: Validate Code & Infrastructure
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Shell Scripts
+        run: |
+          echo "Checking shell script syntax..."
+          for script in scripts/*.sh; do
+            if [ -f "$script" ]; then
+              echo "Validating: $script"
+              bash -n "$script" || exit 1
+            fi
+          done
+          echo "✓ All shell scripts are valid"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Validate Kubernetes Manifests
+        run: |
+          echo "Validating Kubernetes manifests..."
+          for file in k8s/*.yaml; do
+            if [ -f "$file" ]; then
+              echo "Checking: $file"
+              kubectl apply -f "$file" --dry-run=client -o yaml > /dev/null || exit 1
+            fi
+          done
+          echo "✓ All Kubernetes manifests are valid"
+
+      - name: Check for Secrets
+        run: |
+          echo "Scanning for hardcoded secrets..."
+          if grep -r "password\|secret\|api-key\|token" scripts/ k8s/ README.md 2>/dev/null | grep -v "OLLAMA_HOST\|ollama\|example\|placeholder"; then
+            echo "⚠ Warning: Found potential hardcoded secrets"
+            exit 1
+          fi
+          echo "✓ No hardcoded secrets detected"
+
+      - name: Markdown Lint (README)
+        run: |
+          echo "Checking README formatting..."
+          if ! command -v markdownlint &> /dev/null; then
+            npm install -g markdownlint-cli
+          fi
+          markdownlint README.md || true
+          echo "✓ README check complete"
+
+  lint-commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    name: Validate Commit Messages
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Conventional Commits
+        uses: compilerla/conventional-pre-commit@v3.0.0
+        with:
+          force-hash: true
+        env:
+          COMMIT_TYPES: "feat,fix,docs,infra,test,chore,refactor"
+
+  test-deploy-dry-run:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    name: Test Deployment (Dry Run)
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Test Script Execution (Dry Run)
+        run: |
+          echo "Testing scripts in dry-run mode..."
+          
+          # Make scripts executable
+          chmod +x scripts/*.sh
+          
+          # Test that scripts can be sourced without errors
+          bash -n scripts/setup-cluster.sh
+          bash -n scripts/seed-initial-model.sh
+          bash -n scripts/cleanup.sh
+          
+          echo "✓ All scripts validated"
+
+      - name: Verify Kubernetes Manifests Load
+        run: |
+          echo "Loading Kubernetes manifests..."
+          kubectl apply -f k8s/ --dry-run=client --validate=true
+          echo "✓ All manifests validated"

@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-service
+  labels:
+    app: ollama
+spec:
+  type: ClusterIP  # Internal-only service (not exposed to external traffic)
+  # KEDA's HTTP add-on interceptor provides the public entrypoint instead
+  # This avoids GCP Cloud Load Balancer charges ($0.025/hr)
+  
+  selector:
+    app: ollama  # Must match pod labels in deployment.yaml
+  
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80          # Service port (used internally by KEDA)
+      targetPort: 11434 # Ollama container port
+  
+  sessionAffinity: None  # Stateless; requests can route to any pod replica

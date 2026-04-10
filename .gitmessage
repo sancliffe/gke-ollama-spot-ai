@@ -1,0 +1,35 @@
+# <type>(<scope>): <subject>
+#
+# <body>
+#
+# <footer>
+#
+# --- COMMIT MESSAGE GUIDE ---
+# Type: feat, fix, docs, infra, test, chore, refactor
+# Scope: deployment, scripts, keda, storage, models, ci, etc.
+# Subject: Use imperative mood ("add" not "added"), lowercase, no period, <50 chars
+#
+# Example:
+#   feat(keda): add HTTP interceptor for scale-to-zero
+#   infra(k8s): fix GPU resource limits for L4 GPUs
+#   docs: expand troubleshooting section in README
+#
+# TYPES:
+#   feat:     New feature or capability
+#   fix:      Bug fix or correction
+#   docs:     Documentation changes (README, comments)
+#   infra:    Infrastructure (Kubernetes manifests, scripts)
+#   test:     Test additions or updates
+#   chore:    Dependencies, maintenance, no code change
+#   refactor: Code restructuring without behavior change
+#
+# SCOPE (optional but recommended):
+#   Use for specific area: deployment, scripts, keda, storage, models, readme, ci, etc.
+#
+# BREAKING CHANGE: If this breaks compatibility, add:
+#   BREAKING CHANGE: description of what broke
+#
+# Issue reference: If fixes an issue, add:
+#   Closes #42
+#   Fixes #18
+#   Resolves #55

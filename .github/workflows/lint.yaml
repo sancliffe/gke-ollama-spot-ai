@@ -1,0 +1,25 @@
+name: K8s Linting
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  kube-linter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # kube-linter checks for security best practices (e.g., running as root)
+      - name: Scan YAML with kube-linter
+        uses: stackrox/kube-linter-action@v1
+        with:
+          directory: k8s
+          
+      # kube-score checks for production readiness (e.g., resource limits)
+      - name: Scan YAML with kube-score
+        run: |
+          docker run -v $(pwd):/project zegl/kube-score:latest score k8s/*.yaml

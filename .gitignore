@@ -1,0 +1,18 @@
+# Logs
+*.log
+
+# Kubernetes
+# Kubeconfig files are typically in ~/.kube/config, but if any are generated
+# in the project directory, they should be ignored.
+.kube/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db

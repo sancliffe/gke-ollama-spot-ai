@@ -1,0 +1,23 @@
+# Code Owners - Automatic PR review assignment
+# Everyone in the repo is responsible for these areas unless overridden below
+
+# Default owner for all files
+* @steve
+
+# Kubernetes infrastructure
+k8s/ @steve
+
+# Deployment and lifecycle scripts
+scripts/ @steve
+
+# Documentation
+README.md @steve
+CONTRIBUTING.md @steve
+CHANGELOG.md @steve
+
+# CI/CD workflows
+.github/workflows/ @steve
+
+# Configuration files
+.gitmessage @steve
+.gitignore @steve

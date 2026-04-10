@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-storage
+  labels:
+    app: ollama
+spec:
+  # Storage class determines disk type and billing
+  # standard-rwo: Standard HDD (~$0.10/GB/month) - RECOMMENDED
+  #               HDD throughput sufficient for model loading
+  # premium-rwo: SSD (~$0.17/GB/month) - only if model loading is too slow
+  storageClassName: standard-rwo
+  
+  # AccessModes: ReadWriteOnce = disk attaches to only one pod at a time
+  # Ollama requires exclusive access
+  accessModes:
+    - ReadWriteOnce
+  
+  resources:
+    requests:
+      # 50GB: Sufficient for ~15-20 large LLM models (~2-3GB each)
+      # Adjust based on model count and size requirements
+      storage: 50Gi
