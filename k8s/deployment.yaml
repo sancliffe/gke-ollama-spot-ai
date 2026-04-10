@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: ollama
-        image: ollama/ollama:0.1.32
+        image: ollama/ollama:latest
         resources:
           limits:
             cpu: "2"
