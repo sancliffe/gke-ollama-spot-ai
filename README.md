@@ -4,12 +4,15 @@ GKE Autopilot: Cost-Optimized AI Inference with Ollama
 
 This project demonstrates how to deploy a production-grade AI inference engine (Ollama) on Google Kubernetes Engine (GKE) Autopilot using Spot VMs with intelligent autoscaling. Currently configured for CPU-based testing with multi-replica load balancing.
 
+**Important**: This deployment has been tested and verified working in production. All documented steps reflect real deployment experience and lessons learned.
+
 - **Near-Zero Idle Cost**: GKE Autopilot scales to zero pods when idle; costs drop to ~$5/month (storage only)
-- **CPU-Based Inference**: 4-core CPU with 16GB RAM (suitable for lightweight LLM testing; GPU version available)
+- **CPU-Based Inference**: 2-core CPU with 4GB RAM (optimized for stable scheduling; scales 0-2 pods)
 - **Resilient Design**: PersistentVolumeClaims ensure models persist across Spot VM preemptions
 - **Automatic Scaling**: KEDA monitors HTTP traffic; scales from 0→up to 2 pods for load balancing
 - **Multi-Replica Support**: Test load balancing with up to 2 concurrent pods
 - **Easy Deployment**: Fully automated with Bash scripts and Kubernetes YAML manifests
+- **Regional Flexibility**: Supports us-central1 (primary) and us-east1 (fallback for quota issues)
 
 ## Repository Structure
 
@@ -17,7 +20,7 @@ This project demonstrates how to deploy a production-grade AI inference engine (
 .
 ├── README.md                    # This file
 ├── k8s/                         # Kubernetes manifests
-│   ├── deployment.yaml          # Ollama deployment (CPU-based, 4-core, 16GB RAM)
+│   ├── deployment.yaml          # Ollama deployment (2-core CPU, 4GB RAM)
 │   ├── keda-autoscaler.yaml     # KEDA HTTP interceptor config (scales 0-2 pods)
 │   ├── service.yaml             # Internal ClusterIP service
 │   └── storage.yaml             # 50GB persistent volume claim
@@ -49,8 +52,16 @@ Result: Service interruption << model download time
 - **gcloud CLI** installed and authenticated (`gcloud auth login`)
 - **kubectl** installed (`gcloud components install kubectl`)
 - **Helm** installed (for KEDA HTTP Add-on; [install guide](https://helm.sh/docs/intro/install/))
-- **CPU Quota** for Spot VMs in us-central1 (standard quota, usually available by default)
+- **CPU Quota** for Spot VMs (default: 10-50 CPUs available; us-central1 is first choice, us-east1 as fallback if quota exhausted)
+- **Ollama**: Version 0.2.x or higher required (project uses latest tag; pulls gemma2 and other modern models)
 - *(Optional) GPU Quota for L4 if switching to GPU mode (see deployment.yaml comments)*
+
+### Regional Guidance
+- **us-central1** (Default): Primary region with free tier support
+- **us-east1** (Fallback): Recommended if us-central1 hits Spot CPU quota limits
+  - To use us-east1, set `REGION=us-east1` before running `./scripts/setup-cluster.sh`
+  - Quota limits are project-wide; if us-central1 is exhausted, try us-east1
+
 
 ### 60-Second Deployment
 ```bash
@@ -124,6 +135,51 @@ kubectl wait -n keda --for=condition=ready pod -l app.kubernetes.io/name=keda-op
 
 #### 3. Deploy Ollama Stack
 Applies all Kubernetes manifests (deployment, service, storage, KEDA config):
+```bash
+kubectl apply -f k8s/
+```
+**What it creates:**
+- `ollama-gpu` Deployment (spec: 2 CPUs, 4GB RAM per pod, up to 2 replicas initially set to 1 for seeding)
+- `ollama-service` ClusterIP Service (internal-only)
+- `ollama-storage` PersistentVolumeClaim (50GB standard disk)
+- `ollama-http-scaler` HTTPScaledObject (KEDA traffic monitoring, scales 0-2)
+
+**Time**: ~2-3 minutes
+
+#### 4. Seed Initial Model (Critical)
+
+**Prerequisites before seeding:**
+1. Pod must be at `replicas: 1` (KEDA disabled during seeding)
+2. Ollama must be running and ready (check: `kubectl logs -l app=ollama`)
+3. Ollama version must be 0.2.x or higher (project uses :latest tag)
+4. First model pull must complete before enabling KEDA autoscaling
+
+**Why manual seeding matters:** Pulling models is I/O intensive and can fail during KEDA's scale-to-zero cycles. Seeding with a fixed replica count ensures model stays cached.
+
+**Run the seeding script:**
+```bash
+./scripts/seed-initial-model.sh
+```
+
+**What it does:**
+- Ensures deployment is at 1 replica
+- Waits for pod readiness (may take 2-4 minutes for Spot node provisioning)
+- Pulls `gemma2:2b` model ~1.6GB (executes once, cached forever)
+- Model persists in PersistentVolume across restarts
+
+**If seeding times out or fails:**
+```bash
+# Find the pod name
+POD_NAME=$(kubectl get pods -l app=ollama -o jsonpath="{.items[0].metadata.name}")
+
+# Manually complete the model pull
+kubectl exec -it $POD_NAME -- ollama pull gemma2:2b
+
+# Verify model was pulled
+kubectl exec -it $POD_NAME -- ollama list
+```
+
+**Time**: 5-15 minutes (first run only)
 ### Sending Requests to Ollama
 
 The KEDA HTTP Add-on creates its own `LoadBalancer` service. Find its external IP:
@@ -306,7 +362,78 @@ kubectl top pod -l app=ollama
 - Check CPU usage: `kubectl top pod -l app=ollama`
 - Consider GPU upgrade: Uncomment GPU nodeSelector in k8s/deployment.yaml
 - Check pod logs: `kubectl logs -l app=ollama | tail -20`
-- Increase CPU request in deployment.yaml for better performancecripts/seed-initial-model.sh
+- Increase CPU request in deployment.yaml for better performance
+
+## Common Deployment Errors & Fixes
+
+### Error: `Insufficient cpu` or `Insufficient memory`
+
+**Issue**: Pod stays in Pending state with resource constraints
+```
+Warning  Insufficient cpu     ... insufficient cpu
+Warning  Insufficient memory  ... insufficient memory
+```
+
+**Cause**: Project-wide or region-wide CPU quota exhausted. Common in us-central1 during peak hours.
+
+**Solutions (in order):**
+1. **Try a different region**: 
+   ```bash
+   REGION=us-east1 ./scripts/setup-cluster.sh
+   ```
+2. **Check GCP quotas**: Go to GCP Console → Quotas → Search "CPU for N1 machines" and "Memory for N1 machines"
+3. **Wait and retry**: Spot quotas fluctuate throughout the day; try again in 30 minutes
+
+### Error: `412 Precondition Failed: Newer version of Ollama required`
+
+**Issue**: Model pull fails with 412 error
+```
+Error 412: Newer version of Ollama required to pull this model
+```
+
+**Cause**: Ollama version too old to support modern models (project requires 0.2.x+)
+
+**Solution**: Project uses `ollama/ollama:latest` tag, which should auto-update. If error persists:
+```bash
+# Force pod restart to pull latest image
+kubectl rollout restart deployment/ollama-gpu
+
+# Wait for new pod to start
+kubectl wait --for=condition=ready pod -l app=ollama --timeout=300s
+
+# Re-run seeding
+./scripts/seed-initial-model.sh
+```
+
+### Error: Pod in `CrashLoopBackOff` - Backoff timer tripped
+
+**Issue**: Pod repeatedly crashes then backs off (scales but immediately fails)
+```
+Status: CrashLoopBackOff  Restarts: 5  
+Warning  BackOff  ... restarting failed container
+```
+
+**Cause**: KEDA's HTTPScaledObject triggers retry logic that interacts poorly with Kubernetes backoff timer.
+
+**Solution**: Delete and recreate the deployment to reset the backoff timer:
+```bash
+# Delete current deployment
+kubectl delete deployment ollama-gpu
+
+# Reapply all manifests
+kubectl apply -f k8s/
+
+# Re-seed the model
+./scripts/seed-initial-model.sh
+```
+
+### Error: `namespace keda not found`
+
+**Issue**: HTTP Add-on Helm install fails: `Error: namespace "keda" not found`
+
+**Solution**: Use `--create-namespace` flag (already in all project instructions):
+```bash
+helm install http-add-on kedacore/keda-add-ons-http --namespace keda --create-namespace
 ```
 
 ## Best Practices

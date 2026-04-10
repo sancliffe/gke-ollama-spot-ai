@@ -7,11 +7,17 @@
 
 set -e  # Exit immediately if any command fails
 
+# Configuration: Can be overridden via environment variables
 PROJECT_ID=$(gcloud config get-value project)
-REGION="us-central1"
+REGION="${REGION:-us-central1}"          # Default: us-central1, override with: REGION=us-east1 ./setup-cluster.sh
 CLUSTER_NAME="ai-spot-cluster"
 
 echo "[INFO] Starting GKE cluster setup script."
+echo "[INFO] Configuration:"
+echo "[INFO]   Project ID: $PROJECT_ID"
+echo "[INFO]   Region: $REGION (to change: REGION=us-east1 ./setup-cluster.sh)"
+echo "[INFO]   Cluster Name: $CLUSTER_NAME"
+echo "[INFO]"
 echo "[INFO] Enabling required Google Cloud APIs..."
 gcloud services enable container.googleapis.com compute.googleapis.com
 echo "[INFO] Google Cloud APIs enabled successfully."
