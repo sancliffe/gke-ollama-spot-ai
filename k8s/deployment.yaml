@@ -5,7 +5,7 @@ metadata:
   labels:
     app: ollama
 spec:
-  # Replicas are managed by KEDA. Set to 0 for a scale-to-zero default.
+  # Replicas managed by KEDA. Initial state is 0 for scale-to-zero.
   replicas: 0
   selector:
     matchLabels:
@@ -15,37 +15,36 @@ spec:
       labels:
         app: ollama
     spec:
-      # KEDA manages replicas; Pod restart: always keep one instance ready when scaled up
+      # Ensures the pod remains ready when scaled up
       restartPolicy: Always
       
-      # Spot VMs get 30-second preemption notice; give Ollama time to gracefully shutdown
+      # Provides 25 seconds for Ollama to shut down gracefully during Spot preemption
       terminationGracePeriodSeconds: 25
       
-      # CPU TESTING CONFIGURATION:
-      # We have removed the GPU nodeSelector to allow scheduling on standard Spot nodes.
+      # AUTOPILOT COMPLIANT NODE SELECTOR:
+      # Restricted 'gke-provisioning' key removed to pass GKE Warden validation.
       nodeSelector:
-        cloud.google.com/gke-spot: "true"          # Still uses Spot VM cost discount
-        cloud.google.com/gke-provisioning: spot    # Spot preemptible instances
+        cloud.google.com/gke-spot: "true"
       
       containers:
       - name: ollama
         image: ollama/ollama:0.1.32
         
         resources:
-          # RESOURCE ADJUSTMENT:
-          # Increased CPU and Memory to handle LLM inference without a dedicated GPU.
+          # Optimized for CPU-only inference (4 cores, 16GB RAM)
           limits:
-            cpu: "4"                  # 4 CPU cores for improved processing
-            memory: "16Gi"            # 16GB RAM to accommodate model loading in system memory
+            cpu: "4"
+            memory: "16Gi"
           requests:
             cpu: "4"
             memory: "16Gi"
+        
         ports:
         - containerPort: 11434
           name: ollama-api
           protocol: TCP
         
-        # Health probes remain standard for Ollama
+        # Standard health probes to verify service readiness
         readinessProbe:
           httpGet:
             path: "/"
@@ -65,6 +64,7 @@ spec:
           periodSeconds: 20
           timeoutSeconds: 2
           failureThreshold: 3
+          
         env:
         - name: OLLAMA_HOST
           value: "0.0.0.0:11434"

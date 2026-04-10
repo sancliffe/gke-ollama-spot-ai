@@ -1,20 +1,15 @@
-# HTTPScaledObject: Configures KEDA HTTP Add-on for intelligent traffic-based autoscaling
-# How it works:
-# 1. HTTP add-on intercepts traffic destined for Ollama
-# 2. If replicas == 0, it queues the request (won't return error)
-# 3. It signals KEDA to scale deployment to at least 1 replica
-# 4. Once pod is ready, queued request is forwarded
-# Result: True scale-to-zero when idle = zero cost between requests
-
+# HTTPScaledObject: Configures KEDA HTTP Add-on for traffic-based autoscaling
+# Optimized for KEDA v0.13.0 and CPU-based testing.
 apiVersion: http.keda.sh/v1alpha1
 kind: HTTPScaledObject
 metadata:
   name: ollama-http-scaler
   namespace: default
 spec:
-  # The hostname used to route traffic to Ollama
-  # For local testing without DNS: use curl --resolve ollama.gke.dev:80:EXTERNAL_IP
-  host: ollama.gke.dev
+  # UPDATED: v0.13.0 requires 'hosts' as a list instead of a single 'host' string.
+  hosts:
+    - ollama.gke.dev
+  
   scaleTargetRef:
     # Deployment to scale based on HTTP traffic
     name: ollama-gpu
@@ -24,15 +19,10 @@ spec:
     port: 80
   
   replicas:
-    min: 0      # Scale down to 0 when idle (saves all compute costs)
-    max: 2      # UPDATED: Allows 2 pods for testing load balancing on CPU
-  
-  # KEDA ScaledObject configuration (KEDA generates this automatically)
-  scaledObject:
-    # cooldownPeriod: Wait this long after last request before scaling to 0
-    # 300s = 5 minutes (balances: cold-start delay vs. idle cost savings)
-    cooldownPeriod: 300
-    
-    # pollingInterval: How often KEDA checks for active HTTP connections
-    # 30s = check every 30 seconds
-    pollingInterval: 30
+    # Scale down to 0 when idle to achieve near-zero compute costs
+    min: 0      
+    # UPDATED: Allows up to 2 pods for testing load balancing on CPU
+    max: 2      
+
+# Note: The 'scaledObject' sub-field is omitted to use v0.13.0 defaults.
+# Defaults: cooldownPeriod: 300s, pollingInterval: 30s.

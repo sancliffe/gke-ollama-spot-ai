@@ -92,7 +92,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/) format:
 - **refactor**: Code restructuring without behavior change
 
 ### Scope (Optional)
-Specific area: `deployment`, `scripts`, `keda`, `storage`, `models`, `readme`, `ci`, etc.
+Specific area: `deployment`, `scripts`, `keda`, `helm`, `storage`, `models`, `readme`, `ci`, etc.
 
 ### Subject
 - Use imperative mood: "add" not "added"
@@ -166,6 +166,15 @@ Before submitting a PR:
    ```bash
    # On staging GKE cluster (CPU-based testing)
    ./scripts/setup-cluster.sh
+   
+   # Install KEDA core with server-side apply
+   kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda-2.13.0.yaml --server-side
+   
+   # Install KEDA HTTP Add-on via Helm (recommended approach)
+   helm repo add kedacore https://kedacore.github.io/charts
+   helm repo update
+   helm install http-add-on kedacore/keda-add-ons-http --namespace keda
+   
    kubectl apply -f k8s/
    ./scripts/seed-initial-model.sh
    # Test API calls (note: CPU inference will be slower than GPU)

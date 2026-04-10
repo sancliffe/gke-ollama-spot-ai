@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CPU-based testing configuration with multi-replica support (scales 0-2 pods)
 - Enhanced troubleshooting section with CPU-specific guidance
 - Performance tips for CPU vs GPU trade-offs
+- **Server-side apply fix**: Use `--server-side` flag for KEDA core installation to avoid "Too long" annotation errors
+- **Helm-based KEDA HTTP Add-on installation**: Replaces unreliable direct manifest URLs with official Helm chart
+- Prerequisites now include Helm as required dependency
 
 ### Changed
 - **BREAKING**: Deployment switched from GPU (L4) to CPU-based (4-core, 16GB RAM) for cost-effective testing
@@ -18,10 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated architecture documentation to reflect CPU baseline with GPU upgrade instructions
 - Resource specifications: 2 CPU → 4 CPU, 8GB → 16GB RAM (removed GPU requirement)
 - Updated cost analysis to reflect CPU pricing (~$0.02-0.04/hr vs $0.11/hr for GPU)
+- **KEDA Installation**: Now requires `--server-side` flag for core installation
+- **KEDA HTTP Add-on**: Now installed via Helm instead of direct manifest URLs (manifests have moved in recent versions)
+- Installation steps now split into "KEDA Core" (kubectl) and "HTTP Add-on" (Helm) for clarity
 
 ### Fixed
 - GPU resource limits properly quoted in previous version
 - Clarified GPU as optional upgrade in deployment.yaml comments
+- Fixed KEDA manifest installation error caused by moved manifest URLs (404 errors)
+- Fixed annotation size limit errors using server-side apply for KEDA core
 
 ---
 

@@ -48,6 +48,7 @@ Result: Service interruption << model download time
 - **Google Cloud Project** with Billing enabled
 - **gcloud CLI** installed and authenticated (`gcloud auth login`)
 - **kubectl** installed (`gcloud components install kubectl`)
+- **Helm** installed (for KEDA HTTP Add-on; [install guide](https://helm.sh/docs/intro/install/))
 - **CPU Quota** for Spot VMs in us-central1 (standard quota, usually available by default)
 - *(Optional) GPU Quota for L4 if switching to GPU mode (see deployment.yaml comments)*
 
@@ -57,8 +58,13 @@ Result: Service interruption << model download time
 ./scripts/setup-cluster.sh
 
 # 2. Install KEDA (2-3 minutes)
-kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda-2.13.0.yaml
-kubectl apply -f https://github.com/kedacore/http-add-on/releases/download/v0.8.1/http-add-on-v0.8.1.yaml
+# Install KEDA core with server-side apply
+kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda-2.13.0.yaml --server-side
+
+# Install KEDA HTTP Add-on via Helm (more reliable than direct manifests)
+helm repo add kedacore https://kedacore.github.io/charts
+helm repo update
+helm install http-add-on kedacore/keda-add-ons-http --namespace keda
 
 # 3. Deploy Ollama (1-2 minutes)
 kubectl apply -f k8s/
@@ -80,21 +86,41 @@ Creates a single-zone GKE Autopilot cluster optimized for cost:
 - Creates `ai-spot-cluster` in us-central1 with standard tier (qualifies for free-tier credits)
 - Configures kubectl credentials
 
-**Time**: ~5-10 minutes | **Cost**: $0/month (covered by GCP free tier)
 
-#### 2. Install KEDA for Traffic-Based Autoscaling
-KEDA monitors HTTP requests and scales pods automatically:
+**Step A: Install KEDA Core** (server-side apply to avoid annotation errors)
 ```bash
 # Install KEDA core (cost: ~$0.05/month)
-kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda-2.13.0.yaml
-
-# Install KEDA HTTP Add-on (intercepts requests when pods scale to 0)
-kubectl apply -f https://github.com/kedacore/http-add-on/releases/download/v0.8.1/http-add-on-v0.8.1.yaml
+# Use --server-side flag to avoid "Too long" annotation errors
+kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda-2.13.0.yaml --server-side
 ```
+
+**Step B: Install KEDA HTTP Add-on via Helm** (recommended for latest versions)
+```bash
+# Add KEDA Helm repository
+helm repo add kedacore https://kedacore.github.io/charts
+helm repo update
+
+# Install HTTP Add-on via Helm (handles all dependencies and versioning)
+helm install http-add-on kedacore/keda-add-ons-http --namespace keda
+```
+
+**Why Helm?** The KEDA project has moved its manifest locations in recent versions. Helm is the recommended way to install the HTTP Add-on as it automatically handles dependencies and keeps versions in sync.
+
 **Wait for readiness:**
 ```bash
 kubectl wait -n keda --for=condition=ready pod -l app.kubernetes.io/name=keda-operator --timeout=120s
+kubectl wait -n keda --for=condition=ready pod -l app.kubernetes.io/name=keda-http-add-on --timeout=120s
 ```
+
+**Verification:**
+```bash
+# Verify both KEDA and HTTP Add-on pods are running
+kubectl get pods -n keda
+```
+```bash
+kubectl wait -n keda --for=condition=ready pod -l app.kubernetes.io/name=keda-operator --timeout=120s
+```
+**Note**: The `--server-side` flag tells Kubernetes to manage configuration server-side instead of storing the entire YAML in annotations, which prevents size-limit errors on large manifests.
 
 #### 3. Deploy Ollama Stack
 Applies all Kubernetes manifests (deployment, service, storage, KEDA config):
@@ -194,23 +220,33 @@ curl: (28) Operation timed out after 121000 milliseconds
 
 **Note**: Subsequent requests are faster once pods are running. Additional requests may route to replica 2 if load-balanced.
 
-### KEDA Pods Not Running
+### KEDA Installation Error: Manifest Not Found (404)
 
-**Issue**: KEDA pods failing in keda namespace
-```bash
-kubectl get pods -n keda
+**Issue**: KEDA HTTP Add-on installation fails with 404 error
+```
+error: unable to recognize "https://github.com/...": no matches for kind
 ```
 
-**Solution:**
-```bash
-# Check logs
-kubectl logs -n keda -l app.kubernetes.io/name=keda-operator
+**Cause**: KEDA project has moved its manifest locations in recent versions. Direct manifest URLs from GitHub are unreliable.
 
-# Reinstall (if corrupted)
-kubectl delete ns keda --ignore-not-found
-kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda-2.13.0.yaml
-kubectl apply -f https://github.com/kedacore/http-add-on/releases/download/v0.8.1/http-add-on-v0.8.1.yaml
+**Solution**: Use Helm to install KEDA HTTP Add-on (handles dependencies and versioning automatically):
+```bash
+# Add KEDA Helm repository
+helm repo add kedacore https://kedacore.github.io/charts
+helm repo update
+
+# Install HTTP Add-on via Helm
+helm install http-add-on kedacore/keda-add-ons-http --namespace keda
+
+# Verify installation
+kubectl get pods -n keda | grep http-add-on
 ```
+
+**Why Helm?**: Helm is the official recommended way to install KEDA HTTP Add-on. It automatically:
+- Resolves all dependencies correctly
+- Keeps versions in sync
+- Avoids manifest location issues
+- Simplifies upgrades and management
 
 ### Model Not Loading
 
@@ -340,58 +376,6 @@ curl http://localhost:11434/api/tags
 ```
 
 ## Cost Analysis
-2. **Install KEDA for Autoscaling:**
-   This project uses KEDA to automatically scale the Ollama deployment down to zero replicas when idle. This is the key to achieving near-zero idle cost.
-   ```bash
-   # Install KEDA v2.13.0
-   kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda-2.13.0.yaml
-
-   # Install the KEDA HTTP Add-on v0.8.1 for traffic-based scaling
-   kubectl apply -f https://github.com/kedacore/http-add-on/releases/download/v0.8.1/http-add-on-v0.8.1.yaml
-   ```
-
-3. **Deploy the Ollama Stack:**
-   Apply all the manifests in the `k8s` directory. This creates the Ollama deployment, storage, internal service, and the KEDA `HTTPScaledObject` that manages scaling.
-   ```bash
-   kubectl apply -f k8s/
-   ```
-
-4. **Pull the Initial Model:**
-   Run the `seed-initial-model.sh` script to ensure the deployment is active and pull the `gemma2:2b` model into the persistent disk. This makes the model available immediately for the first request.
-   ```bash
-   ./scripts/seed-initial-model.sh
-   ```
-   After 5 minutes of inactivity (`cooldownPeriod`), KEDA will automatically scale the `ollama-gpu` deployment down to zero replicas.
-
-### Interacting with the Autoscaled Service
-The KEDA HTTP add-on creates its own `LoadBalancer` service to route traffic. Find its external IP address:
-```bash
-kubectl get service -n keda keda-http-add-on-interceptor-proxy -o jsonpath='{.status.loadBalancer.ingress.ip}'
-```
-
-To send a request, you must use the hostname defined in `k8s/keda-autoscaler.yaml` (`ollama.gke.dev`). Use `curl` with the `--resolve` flag to direct the request to the interceptor's IP address. **The first request will take a few minutes** as it triggers GKE to provision a new Spot node and start the pod.
-
-```bash
-# Store the interceptor IP in a variable
-export KEDA_IP=$(kubectl get svc -n keda keda-http-add-on-interceptor-proxy -o jsonpath='{.status.loadBalancer.ingress.ip}')
-
-# Send a request to list models. This will trigger a scale-up from zero.
-# The first time you run this after a scale-down, it may appear to hang for several minutes.
-curl --resolve ollama.gke.dev:80:$KEDA_IP http://ollama.gke.dev/api/tags
-
-# Once the pod is running, you can send chat requests to the /api/chat endpoint.
-curl --resolve ollama.gke.dev:80:$KEDA_IP http://ollama.gke.dev/api/chat \
-  -d '{
-    "model": "gemma2:2b",
-    "messages": [
-      { "role": "user", "content": "Why is the sky blue?" }
-    ],
-    "stream": false
-  }'
-```
-
-Cost Analysis (Estimated)
-Component	Standard Price	Spot Price (This Project)
 GKE Management	$0.10/hr	$0.00 (via GCP Free Tier Credit)
 NVIDIA L4 GPU	~$0.70/hr	~$0.11/hr
 Total Hourly	~$0.85/hr	~$0.15/hr

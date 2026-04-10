@@ -44,8 +44,13 @@ echo ""
 # Step 4: Uninstall KEDA and HTTP Add-on
 echo "[INFO] Step 4/6: Uninstalling KEDA and HTTP Add-on components..."
 # Must uninstall before cluster deletion to clean up CRDs and webhooks
-kubectl delete -f https://github.com/kedacore/http-add-on/releases/download/v0.8.1/http-add-on-v0.8.1.yaml --ignore-not-found
+
+# Uninstall KEDA HTTP Add-on via Helm (installed via Helm chart)
+helm uninstall http-add-on --namespace keda --ignore-not-found
+
+# Uninstall KEDA core via kubectl (installed via direct manifest)
 kubectl delete -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda-2.13.0.yaml --ignore-not-found
+
 echo "[SUCCESS] KEDA components uninstalled."
 echo ""
 
