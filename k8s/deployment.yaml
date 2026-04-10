@@ -21,77 +21,60 @@ spec:
       # Spot VMs get 30-second preemption notice; give Ollama time to gracefully shutdown
       terminationGracePeriodSeconds: 25
       
-      # Restrict pods to Spot GPU nodes for cost optimization
+      # CPU TESTING CONFIGURATION:
+      # We have removed the GPU nodeSelector to allow scheduling on standard Spot nodes.
       nodeSelector:
-        cloud.google.com/gke-spot: "true"          # Spot VM cost discount (60-91%)
+        cloud.google.com/gke-spot: "true"          # Still uses Spot VM cost discount
         cloud.google.com/gke-provisioning: spot    # Spot preemptible instances
-        cloud.google.com/gke-accelerator: nvidia-l4  # 24GB VRAM GPU for LLM inference
-      
-      # SECURITY: Consider running as non-root in production
-      # Requires creating a custom Ollama image with a non-root user
-      # securityContext:
-      #   runAsUser: 1001
-      #   fsGroup: 1001
       
       containers:
       - name: ollama
-        # Image: Ollama published on DockerHub
-        # Version: Pinned for reproducible deployments (update when stable releases available)
         image: ollama/ollama:0.1.32
         
         resources:
-          # Resource limits prevent pod from exceeding node capacity
+          # RESOURCE ADJUSTMENT:
+          # Increased CPU and Memory to handle LLM inference without a dedicated GPU.
           limits:
-            nvidia.com/gpu: "1"      # Single L4 GPU
-            cpu: "2"                  # 2 CPU cores (inference bound)
-            memory: "8Gi"             # 8GB RAM for model processing
-          # Requests match limits for guaranteed resource reservation
+            cpu: "4"                  # 4 CPU cores for improved processing
+            memory: "16Gi"            # 16GB RAM to accommodate model loading in system memory
           requests:
-            nvidia.com/gpu: "1"
-            cpu: "2"
-            memory: "8Gi"
+            cpu: "4"
+            memory: "16Gi"
         ports:
         - containerPort: 11434
           name: ollama-api
           protocol: TCP
         
-        # Health probes ensure Kubernetes detects pod readiness and liveness
-        # Both use HTTP to check Ollama's health endpoint
+        # Health probes remain standard for Ollama
         readinessProbe:
           httpGet:
-            path: "/"        # Ollama health endpoint (returns 200 OK)
+            path: "/"
             port: ollama-api
             scheme: HTTP
-          initialDelaySeconds: 5   # Wait 5s before first probe (container startup)
-          periodSeconds: 10        # Check readiness every 10s
-          timeoutSeconds: 2        # Fail if probe takes >2s
-          failureThreshold: 3      # Fail pod after 3 consecutive failures
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3
         
-        # Liveness detects if Ollama process is hung/deadlocked
         livenessProbe:
           httpGet:
             path: "/"
             port: ollama-api
             scheme: HTTP
-          initialDelaySeconds: 15  # Wait 15s before first probe (app initialization)
-          periodSeconds: 20        # Check liveness every 20s
+          initialDelaySeconds: 15
+          periodSeconds: 20
           timeoutSeconds: 2
-          failureThreshold: 3      # Restart pod after 3 consecutive failures
+          failureThreshold: 3
         env:
-        # OLLAMA_HOST: Bind to all interfaces so Kubernetes service can access it
         - name: OLLAMA_HOST
           value: "0.0.0.0:11434"
         
         volumeMounts:
-        # Mount persistent volume for model storage
-        # Survives pod restarts and Spot preemptions
         - name: ollama-data
           mountPath: /root/.ollama
       
       volumes:
-      # Reference the Persistent Volume Claim (defined in storage.yaml)
-      # This 50GB disk persists across pod/node failures
       - name: ollama-data
         persistentVolumeClaim:
           claimName: ollama-storage
-          readOnly: false  # Ollama needs write access to cache models
+          readOnly: false

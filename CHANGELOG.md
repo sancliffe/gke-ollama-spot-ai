@@ -8,16 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Enhanced README with detailed troubleshooting section
-- Improved documentation clarity with quick-start guide
-- Added table of contents to README
-- Comprehensive cost analysis with multiple scenarios
-
-### Fixed
-- GPU resource limits now properly quoted in deployment.yaml (fixes Kubernetes validation)
+- CPU-based testing configuration with multi-replica support (scales 0-2 pods)
+- Enhanced troubleshooting section with CPU-specific guidance
+- Performance tips for CPU vs GPU trade-offs
 
 ### Changed
-- Restructured README with better navigation
+- **BREAKING**: Deployment switched from GPU (L4) to CPU-based (4-core, 16GB RAM) for cost-effective testing
+- Max replicas increased from 1 to 2 to support load balancing testing
+- Updated architecture documentation to reflect CPU baseline with GPU upgrade instructions
+- Resource specifications: 2 CPU → 4 CPU, 8GB → 16GB RAM (removed GPU requirement)
+- Updated cost analysis to reflect CPU pricing (~$0.02-0.04/hr vs $0.11/hr for GPU)
+
+### Fixed
+- GPU resource limits properly quoted in previous version
+- Clarified GPU as optional upgrade in deployment.yaml comments
 
 ---
 

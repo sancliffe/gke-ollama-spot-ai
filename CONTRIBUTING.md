@@ -164,13 +164,18 @@ Before submitting a PR:
 
 4. **Test locally** (if possible)
    ```bash
-   # On staging GKE cluster
+   # On staging GKE cluster (CPU-based testing)
    ./scripts/setup-cluster.sh
    kubectl apply -f k8s/
    ./scripts/seed-initial-model.sh
-   # Test API calls
+   # Test API calls (note: CPU inference will be slower than GPU)
    ./scripts/cleanup.sh
    ```
+
+5. **For GPU testing** (optional)
+   - Uncomment GPU nodeSelector in k8s/deployment.yaml
+   - Ensure L4 GPU quota in GCP console
+   - Update deployment.yaml resource limits to GPU: "1"
 
 ## Pull Request Process
 

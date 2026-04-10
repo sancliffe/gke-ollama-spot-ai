@@ -2,12 +2,13 @@ GKE Autopilot: Cost-Optimized AI Inference with Ollama
 
 **Production-ready deployment of Ollama on GKE using Spot VMs with KEDA autoscaling for near-zero idle costs.**
 
-This project demonstrates how to deploy a production-grade AI inference engine (Ollama) on Google Kubernetes Engine (GKE) Autopilot using Spot NVIDIA L4 GPUs with intelligent autoscaling.
+This project demonstrates how to deploy a production-grade AI inference engine (Ollama) on Google Kubernetes Engine (GKE) Autopilot using Spot VMs with intelligent autoscaling. Currently configured for CPU-based testing with multi-replica load balancing.
 
 - **Near-Zero Idle Cost**: GKE Autopilot scales to zero pods when idle; costs drop to ~$5/month (storage only)
-- **GPU Acceleration**: NVIDIA L4 GPU (24GB VRAM) optimized for LLM inference
+- **CPU-Based Inference**: 4-core CPU with 16GB RAM (suitable for lightweight LLM testing; GPU version available)
 - **Resilient Design**: PersistentVolumeClaims ensure models persist across Spot VM preemptions
-- **Automatic Scaling**: KEDA monitors HTTP traffic; scales from 0→1 pod within seconds
+- **Automatic Scaling**: KEDA monitors HTTP traffic; scales from 0→up to 2 pods for load balancing
+- **Multi-Replica Support**: Test load balancing with up to 2 concurrent pods
 - **Easy Deployment**: Fully automated with Bash scripts and Kubernetes YAML manifests
 
 ## Repository Structure
@@ -16,8 +17,8 @@ This project demonstrates how to deploy a production-grade AI inference engine (
 .
 ├── README.md                    # This file
 ├── k8s/                         # Kubernetes manifests
-│   ├── deployment.yaml          # Ollama deployment with GPU specs
-│   ├── keda-autoscaler.yaml     # KEDA HTTP interceptor config
+│   ├── deployment.yaml          # Ollama deployment (CPU-based, 4-core, 16GB RAM)
+│   ├── keda-autoscaler.yaml     # KEDA HTTP interceptor config (scales 0-2 pods)
 │   ├── service.yaml             # Internal ClusterIP service
 │   └── storage.yaml             # 50GB persistent volume claim
 ├── scripts/                     # Cluster lifecycle scripts
@@ -47,7 +48,8 @@ Result: Service interruption << model download time
 - **Google Cloud Project** with Billing enabled
 - **gcloud CLI** installed and authenticated (`gcloud auth login`)
 - **kubectl** installed (`gcloud components install kubectl`)
-- **GPU Quota** for Preemptible L4 GPUs in us-central1 (request 1 quota if not available)
+- **CPU Quota** for Spot VMs in us-central1 (standard quota, usually available by default)
+- *(Optional) GPU Quota for L4 if switching to GPU mode (see deployment.yaml comments)*
 
 ### 60-Second Deployment
 ```bash
@@ -125,24 +127,26 @@ curl --resolve ollama.gke.dev:80:$KEDA_IP http://ollama.gke.dev/api/generate \
   -d '{
 ### Monthly Cost Breakdown
 
-| Component | Standard | Spot (This Project) | Savings |
-|-----------|----------|---------------------|---------|
-| GKE Cluster Management | $0.10/hr × 730 hrs = $73 | $0/mo (GCP Free Tier) | $73 |
-| NVIDIA L4 GPU | $0.70/hr × 730 hrs = $511 | $0.11/hr × active hrs only | ~$485 |
-| Persistent Disk Storage | $0.10/GB/mo × 50GB = $5 | $0.10/GB/mo × 50GB = $5 | $0 |
-| **Total (fully active)** | **~$589/mo** | **~$15/mo** | **97% savings** |
-| **Total (idle 24/7)** | N/A | **~$5/mo** | Massive |
+| Component | GPU (Original) | CPU (Current) | Spot CPU | Savings vs GPU |
+|-----------|---|---|---|---|
+| GKE Cluster Management | $0/mo (Free Tier) | $0/mo | $0/mo | - |
+| Compute (L4 GPU or CPU) | $0.11/hr active | N/A | $0.02-0.04/hr | 60-80% |
+| Persistent Disk Storage | $5/mo | $5/mo | $5/mo | - |
+| **Monthly (1 hr/day active)** | **~$13/mo** | **~$3-5/mo** | **~$2-3/mo** | 85-90% |
+| **Monthly (idle only)** | N/A | N/A | **~$5/mo** | - |
 
-**Real-World Scenario** (3 hrs/day active):
+**Real-World Scenario** (CPU-based, 3 hrs/day active):
 - 21 hours/day @ $0 (pods scaled to 0)
-- 3 hours/day @ $0.11 = $0.33/day
-- **Monthly: ~$10/month** (storage + minimal GPU use)
+- 3 hours/day @ $0.03/hr (CPU) = ~$0.09/day
+- **Monthly: ~$8/month** (storage + CPU usage)
 
 **Cost Optimization Tips:**
-1. **Monitor idle time**: Check `kubectl logs -n keda keda-http-add-on-dispatcher` for traffic patterns
-2. **Adjust cooldownPeriod**: Edit `k8s/keda-autoscaler.yaml` (default: 300s = 5 min)
-3. **Scale down manually**: `kubectl scale deployment/ollama-gpu --replicas=0` to save during off-hours
-4. **Use cheaper regions**: us-central1 is already competitive; avoid us-east1
+1. **CPU vs GPU trade-off**: Current CPU setup is cheaper but slower; GPU version adds ~$70/mo
+2. **Monitor idle time**: Check `kubectl logs -n keda keda-http-add-on-dispatcher` for traffic patterns
+3. **Adjust cooldownPeriod**: Edit `k8s/keda-autoscaler.yaml` (default: 300s = 5 min)
+4. **Scale down manually**: `kubectl scale deployment/ollama-gpu --replicas=0` to save during off-hours
+5. **Adjust max replicas**: Edit `k8s/keda-autoscaler.yaml` (currently max: 2 for load testing)
+6. **Use cheaper regions**: us-central1 is already competitive; avoid us-east1
 
 ## Troubleshooting
 
@@ -154,19 +158,21 @@ kubectl describe pod -l app=ollama
 ```
 
 **Common Causes:**
-- **Insufficient GPU quota**: Request L4 GPU quota from GCP console
+- **Insufficient Spot VM quota**: Check GCP console for spot instance availability
 - **Spot VM preemption**: Try again; capacity fluctuates throughout the day
 - **Node not ready**: Wait 5-10 minutes for GKE to provision Spot node
+- **CPU oversubscription**: Cluster may be full; try again or scale down other workloads
 
 **Solution:**
 ```bash
 # Check pod events
 kubectl describe pod -l app=ollama
 
-# Check node status
-kubectl get nodes -L cloud.google.com/gke-accelerator
+# Check node status and resources
+kubectl get nodes
+kubectl top nodes
 
-# Force new node
+# Force new pod
 kubectl scale deployment/ollama-gpu --replicas=0
 kubectl scale deployment/ollama-gpu --replicas=1
 ```
@@ -178,14 +184,15 @@ kubectl scale deployment/ollama-gpu --replicas=1
 curl: (28) Operation timed out after 121000 milliseconds
 ```
 
-**Why this happens**: KEDA must provision a new Spot node when pod is at 0 replicas. This is **normal behavior**.
+**Why this happens**: KEDA must provision a new Spot node when pods are at 0 replicas. This is **normal behavior**.
 
 **Solution:**
 - Increase curl timeout: `curl --max-time 300 ...` (5 minutes)
 - Check pod status: `kubectl get pods -w` (watch for Running state)
 - Check events: `kubectl describe pod -l app=ollama`
+- Monitor KEDA: `kubectl logs -n keda -l app.kubernetes.io/name=keda-http-add-on | head -20`
 
-**Note**: Subsequent requests are fast once pod is running.
+**Note**: Subsequent requests are faster once pods are running. Additional requests may route to replica 2 if load-balanced.
 
 ### KEDA Pods Not Running
 
@@ -213,13 +220,33 @@ kubectl apply -f https://github.com/kedacore/http-add-on/releases/download/v0.8.
 kubectl exec -it deployment/ollama-gpu -- ls ~/.ollama/models/manifests/
 
 # Check PVC attachment
-kubectl get pvc
+
+# Check CPU usage (if CPU-bound)
+kubectl top pod -l app=ollama
 ```
 
 **Solution**:
 ```bash
-# Re-run seed script
+# Re-run seed script (may take longer on CPU)
 ./scripts/seed-initial-model.sh
+
+# If timeout occurs on CPU, increase wait time in seed-initial-model.sh
+```
+
+### Slow Inference Performance
+
+**Issue**: API responses are very slow (>30s for small prompts)
+
+**Causes:**
+- CPU-based inference is slower than GPU
+- Pod may be competing with other workloads
+- Model may be swapping to disk
+
+**Solution:**
+- Check CPU usage: `kubectl top pod -l app=ollama`
+- Consider GPU upgrade: Uncomment GPU nodeSelector in k8s/deployment.yaml
+- Check pod logs: `kubectl logs -l app=ollama | tail -20`
+- Increase CPU request in deployment.yaml for better performancecripts/seed-initial-model.sh
 ```
 
 ## Best Practices
@@ -235,9 +262,11 @@ kubectl get pvc
 - **Delete immediately**: Always run `./scripts/cleanup.sh` when done (prevents phantom costs)
 
 ### Performance
+- **CPU-based inference**: Currently slower than GPU; suitable for testing and lightweight loads
 - **Use streaming**: Set `stream: true` for faster time-to-first-token
 - **Batch requests**: Group requests during active periods to minimize cold-start overhead
 - **Monitor latency**: Check response times with `time curl ...` to identify bottlenecks
+- **Switch to GPU**: Uncomment GPU nodeSelector in k8s/deployment.yaml for 5-10x faster inference (adds ~$70/mo)
 
 ### High Availability (Multi-Region)
 For production, consider:

@@ -17,7 +17,7 @@ kubectl scale deployment/ollama-gpu --replicas=1
 
 # Step 2: Wait for pod readiness (includes health checks)
 echo "[INFO] Step 2/4: Waiting for Ollama pod to reach Ready state (timeout: 600s)..."
-echo "[NOTE] Provisioning a Spot GPU node typically takes 2-4 minutes."
+echo "[NOTE] Provisioning a Spot node typically takes 2-4 minutes (CPU or GPU)."
 echo "       GKE automatically provisions a new node and attaches the persistent disk."
 
 # Wait for the pod to pass readiness/liveness probes
@@ -31,8 +31,9 @@ echo "[INFO] Pod identified: $POD_NAME"
 
 # Step 4: Pull model into persistent volume
 echo "[INFO] Step 4/4: Pulling 'gemma2:2b' model into persistent volume (~1.6GB)..."
-echo "[NOTE] This may take 2-5 minutes depending on internet speed."
-echo "[NOTE] Gemma 2B: lightweight, fast inference, excellent for demos/testing."
+echo "[NOTE] CPU-based inference: may take 5-15 minutes for initial pull."
+echo "[NOTE] If timeout occurs, run: kubectl exec -it \$POD_NAME -- ollama pull gemma2:2b"
+echo "[NOTE] Gemma 2B: lightweight, suitable for CPU and GPU inference."
 kubectl exec -it $POD_NAME -- ollama pull gemma2:2b
 echo "[SUCCESS] Model 'gemma2:2b' pulled and cached."
 
