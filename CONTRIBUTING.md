@@ -173,7 +173,7 @@ Before submitting a PR:
    # Install KEDA HTTP Add-on via Helm (recommended approach)
    helm repo add kedacore https://kedacore.github.io/charts
    helm repo update
-   helm install http-add-on kedacore/keda-add-ons-http --namespace keda
+   helm install http-add-on kedacore/keda-add-ons-http --namespace keda --create-namespace
    
    kubectl apply -f k8s/
    ./scripts/seed-initial-model.sh

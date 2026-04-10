@@ -64,7 +64,7 @@ kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda
 # Install KEDA HTTP Add-on via Helm (more reliable than direct manifests)
 helm repo add kedacore https://kedacore.github.io/charts
 helm repo update
-helm install http-add-on kedacore/keda-add-ons-http --namespace keda
+helm install http-add-on kedacore/keda-add-ons-http --namespace keda --create-namespace
 
 # 3. Deploy Ollama (1-2 minutes)
 kubectl apply -f k8s/
@@ -101,7 +101,7 @@ helm repo add kedacore https://kedacore.github.io/charts
 helm repo update
 
 # Install HTTP Add-on via Helm (handles all dependencies and versioning)
-helm install http-add-on kedacore/keda-add-ons-http --namespace keda
+helm install http-add-on kedacore/keda-add-ons-http --namespace keda --create-namespace
 ```
 
 **Why Helm?** The KEDA project has moved its manifest locations in recent versions. Helm is the recommended way to install the HTTP Add-on as it automatically handles dependencies and keeps versions in sync.
@@ -236,7 +236,7 @@ helm repo add kedacore https://kedacore.github.io/charts
 helm repo update
 
 # Install HTTP Add-on via Helm
-helm install http-add-on kedacore/keda-add-ons-http --namespace keda
+helm install http-add-on kedacore/keda-add-ons-http --namespace keda --create-namespace
 
 # Verify installation
 kubectl get pods -n keda | grep http-add-on
@@ -247,6 +247,30 @@ kubectl get pods -n keda | grep http-add-on
 - Keeps versions in sync
 - Avoids manifest location issues
 - Simplifies upgrades and management
+
+### KEDA HTTP Add-on: Namespace Not Found
+
+**Issue**: KEDA HTTP Add-on installation fails with namespace error
+```
+Error from server (NotFound): namespace "keda" not found
+```
+
+**Cause**: The `keda` namespace doesn't exist yet (common on brand-new clusters).
+
+**Solution**: Use `--create-namespace` flag when installing via Helm:
+```bash
+# Add KEDA Helm repository
+helm repo add kedacore https://kedacore.github.io/charts
+helm repo update
+
+# Install HTTP Add-on with --create-namespace to create the namespace
+helm install http-add-on kedacore/keda-add-ons-http --namespace keda --create-namespace
+
+# Verify installation
+kubectl get pods -n keda
+```
+
+**Note**: The `--create-namespace` flag ensures the namespace is created if it doesn't exist. This is automatically handled by the project's deployment instructions.
 
 ### Model Not Loading
 
