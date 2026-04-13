@@ -150,8 +150,8 @@ log_success "KEDA HTTP Add-on installation initiated."
 log_info "Waiting for KEDA HTTP Add-on to become ready..."
 
 # Wait for deployments to be created (with retries)
-local max_retries=30
-local retry_count=0
+max_retries=30
+retry_count=0
 while [[ $retry_count -lt $max_retries ]]; do
     if kubectl get deployment keda-http-add-on-interceptor -n keda &>/dev/null && \
        kubectl get deployment keda-http-add-on-operator -n keda &>/dev/null; then
