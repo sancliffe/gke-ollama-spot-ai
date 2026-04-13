@@ -62,13 +62,27 @@ check_deps() {
     log_info "All dependencies verified: gcloud, kubectl, helm"
 }
 
+# Validate dependencies before proceeding
+check_deps
+
 # ============================================================================
 # Configuration
 # ============================================================================
 CLUSTER_NAME="ai-spot-cluster"
-# FIXED: Removed the hardcoded REGION="us-central1" that followed this line
-REGION="${REGION:-us-central1}"  # Respect REGION environment variable; default to us-central1
 LOG_FILE="cleanup_$(date +%Y%m%d_%H%M%S).log"
+
+# Auto-detect cluster region if not specified via environment variable
+if [[ -z "$REGION" ]]; then
+    # Try to find the cluster in any region
+    REGION=$(gcloud container clusters list --format='value(location)' --filter="name=$CLUSTER_NAME" 2>/dev/null | head -1)
+    if [[ -z "$REGION" ]]; then
+        log_error "Cluster '$CLUSTER_NAME' not found in any region. Please specify REGION explicitly or ensure the cluster exists."
+        exit 1
+    fi
+    log_info "Auto-detected cluster region: $REGION"
+else
+    log_info "Using specified region: $REGION"
+fi
 
 SECONDS=0
 
@@ -76,9 +90,6 @@ log_warn "Starting complete teardown of cluster '$CLUSTER_NAME' in region '$REGI
 log_warn "This will delete all resources, persistent data, and the cluster."
 log_info "Proceeding in 10 seconds... (Ctrl+C to cancel)"
 sleep 10
-
-# Validate dependencies before proceeding
-check_deps
 
 log_info "Starting 6-step cleanup process..."
 echo ""
