@@ -57,7 +57,7 @@ jobs:
           if ! command -v markdownlint &> /dev/null; then
             npm install -g markdownlint-cli
           fi
-          markdownlint README.md || true
+          markdownlint README.md
           echo "✓ README check complete"
 
   lint-commits:
@@ -72,7 +72,7 @@ jobs:
           fetch-depth: 0
 
       - name: Conventional Commits
-        uses: compilerla/conventional-pre-commit@v3.0.0
+        uses: compilerla/conventional-pre-commit@v2.4.0
         with:
           force-hash: true
         env:

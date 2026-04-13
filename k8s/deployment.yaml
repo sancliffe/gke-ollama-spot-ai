@@ -1,7 +1,8 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ollama-gpu
+  # Renamed from ollama-gpu as it's currently configured for CPU-based inference
+  name: ollama-cpu
 spec:
   replicas: 1  # Manual scale of 1 for seeding
   selector:
@@ -15,13 +16,33 @@ spec:
       containers:
       - name: ollama
         image: ollama/ollama:latest
+        # 2 CPU's with 4GB RAM is a good starting point for small to medium LLMs (e.g., LLaMA 7B)
+        # Adjust resources based on model size and performance requirements
         resources:
           limits:
             cpu: "2"
             memory: "4Gi"
+            # nvidia.com/gpu: "1"  # Uncomment for GPU inference
           requests:
             cpu: "2"
             memory: "4Gi"
+        # Health checks ensure pod is only marked Ready when Ollama is responsive
+        livenessProbe:
+          httpGet:
+            path: /api/tags
+            port: 11434
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/tags
+            port: 11434
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
         volumeMounts:
         - name: ollama-data
           mountPath: /root/.ollama

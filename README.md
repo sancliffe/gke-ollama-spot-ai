@@ -5,7 +5,6 @@ GKE Autopilot: Cost-Optimized AI Inference with Ollama
 This project demonstrates how to deploy a production-grade AI inference engine (Ollama) on Google Kubernetes Engine (GKE) Autopilot using Spot VMs with intelligent autoscaling. Currently configured for CPU-based testing with multi-replica load balancing.
 
 **Important**: This deployment has been tested and verified working in production. All documented steps reflect real deployment experience and lessons learned.
-
 - **Near-Zero Idle Cost**: GKE Autopilot scales to zero pods when idle; costs drop to ~$5/month (storage only)
 - **CPU-Based Inference**: 2-core CPU with 4GB RAM (optimized for stable scheduling; scales 0-2 pods)
 - **Resilient Design**: PersistentVolumeClaims ensure models persist across Spot VM preemptions
@@ -51,7 +50,7 @@ Result: Service interruption << model download time
 - **Google Cloud Project** with Billing enabled
 - **gcloud CLI** installed and authenticated (`gcloud auth login`)
 - **kubectl** installed (`gcloud components install kubectl`)
-- **Helm** installed (for KEDA HTTP Add-on; [install guide](https://helm.sh/docs/intro/install/))
+- **Helm** installed (required for KEDA HTTP Add-on; [install guide](https://helm.sh/docs/intro/install/))
 - **CPU Quota** for Spot VMs (default: 10-50 CPUs available; us-central1 is first choice, us-east1 as fallback if quota exhausted)
 - **Ollama**: Version 0.2.x or higher required (project uses latest tag; pulls gemma2 and other modern models)
 - *(Optional) GPU Quota for L4 if switching to GPU mode (see deployment.yaml comments)*
@@ -139,7 +138,7 @@ Applies all Kubernetes manifests (deployment, service, storage, KEDA config):
 kubectl apply -f k8s/
 ```
 **What it creates:**
-- `ollama-gpu` Deployment (spec: 2 CPUs, 4GB RAM per pod, up to 2 replicas initially set to 1 for seeding)
+- `ollama-cpu` Deployment (spec: 2 CPUs, 4GB RAM per pod, up to 2 replicas initially set to 1 for seeding)
 - `ollama-service` ClusterIP Service (internal-only)
 - `ollama-storage` PersistentVolumeClaim (50GB standard disk)
 - `ollama-http-scaler` HTTPScaledObject (KEDA traffic monitoring, scales 0-2)
@@ -226,7 +225,7 @@ curl --resolve ollama.gke.dev:80:$KEDA_IP http://ollama.gke.dev/api/generate \
 1. **CPU vs GPU trade-off**: Current CPU setup is cheaper but slower; GPU version adds ~$70/mo
 2. **Monitor idle time**: Check `kubectl logs -n keda keda-http-add-on-dispatcher` for traffic patterns
 3. **Adjust cooldownPeriod**: Edit `k8s/keda-autoscaler.yaml` (default: 300s = 5 min)
-4. **Scale down manually**: `kubectl scale deployment/ollama-gpu --replicas=0` to save during off-hours
+4. **Scale down manually**: `kubectl scale deployment/ollama-cpu --replicas=0` to save during off-hours
 5. **Adjust max replicas**: Edit `k8s/keda-autoscaler.yaml` (currently max: 2 for load testing)
 6. **Use cheaper regions**: us-central1 is already competitive; avoid us-east1
 
@@ -255,8 +254,8 @@ kubectl get nodes
 kubectl top nodes
 
 # Force new pod
-kubectl scale deployment/ollama-gpu --replicas=0
-kubectl scale deployment/ollama-gpu --replicas=1
+kubectl scale deployment/ollama-cpu --replicas=0
+kubectl scale deployment/ollama-cpu --replicas=1
 ```
 
 ### Connection Timeout on First Request
@@ -333,7 +332,7 @@ kubectl get pods -n keda
 **Issue**: No models appear in `/api/tags`
 ```bash
 # Check if model was seeded
-kubectl exec -it deployment/ollama-gpu -- ls ~/.ollama/models/manifests/
+kubectl exec -it deployment/ollama-cpu -- ls ~/.ollama/models/manifests/
 
 # Check PVC attachment
 
@@ -396,7 +395,7 @@ Error 412: Newer version of Ollama required to pull this model
 **Solution**: Project uses `ollama/ollama:latest` tag, which should auto-update. If error persists:
 ```bash
 # Force pod restart to pull latest image
-kubectl rollout restart deployment/ollama-gpu
+kubectl rollout restart deployment/ollama-cpu
 
 # Wait for new pod to start
 kubectl wait --for=condition=ready pod -l app=ollama --timeout=300s
@@ -418,7 +417,7 @@ Warning  BackOff  ... restarting failed container
 **Solution**: Delete and recreate the deployment to reset the backoff timer:
 ```bash
 # Delete current deployment
-kubectl delete deployment ollama-gpu
+kubectl delete deployment ollama-cpu
 
 # Reapply all manifests
 kubectl apply -f k8s/

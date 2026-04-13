@@ -17,10 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **--create-namespace flag**: Helm install now creates keda namespace if it doesn't exist
 
 ### Changed
-- **BREAKING**: Deployment switched from GPU (L4) to CPU-based (4-core, 16GB RAM) for cost-effective testing
+- **BREAKING**: Deployment switched from GPU (L4) to CPU-based (2-core, 4GB RAM) for cost-effective testing
 - Max replicas increased from 1 to 2 to support load balancing testing
 - Updated architecture documentation to reflect CPU baseline with GPU upgrade instructions
-- Resource specifications: 2 CPU → 4 CPU, 8GB → 16GB RAM (removed GPU requirement)
+- Resource specifications: 2 CPU, 4GB RAM
 - Updated cost analysis to reflect CPU pricing (~$0.02-0.04/hr vs $0.11/hr for GPU)
 - **KEDA Installation**: Now requires `--server-side` flag for core installation
 - **KEDA HTTP Add-on**: Now installed via Helm with `--create-namespace` flag (manifests have moved in recent versions)

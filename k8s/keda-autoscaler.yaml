@@ -1,10 +1,12 @@
 # HTTPScaledObject: Configures KEDA HTTP Add-on for traffic-based autoscaling
 # Optimized for KEDA v0.13.0 and CPU-based testing.
+# Note: This is a third-party CRD from the KEDA HTTP Add-on; Cloud Code validation can be safely ignored
 apiVersion: http.keda.sh/v1alpha1
 kind: HTTPScaledObject
 metadata:
   name: ollama-http-scaler
   namespace: default
+  # Note: The 'hosts' field is a placeholder. Replace 'ollama.gke.dev' with your actual domain or IP.
 spec:
   # UPDATED: v0.13.0 requires 'hosts' as a list instead of a single 'host' string.
   hosts:
@@ -12,7 +14,7 @@ spec:
   
   scaleTargetRef:
     # Deployment to scale based on HTTP traffic
-    name: ollama-gpu
+    name: ollama-cpu
     # Internal ClusterIP service that receives forwarded traffic
     service: ollama-service
     # Service port for traffic routing
