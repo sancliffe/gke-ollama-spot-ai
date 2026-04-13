@@ -85,7 +85,7 @@ echo ""
 
 # Step 1: Delete KEDA autoscaling components
 log_info "Step 1/6: Deleting KEDA autoscaling resources..."
-kubectl delete httpscaledobject.http.keda.sh --all --ignore-not-found
+kubectl delete httpscaledobject.http.keda.sh --all --ignore-not-found || true
 log_success "KEDA resources deleted."
 echo ""
 
