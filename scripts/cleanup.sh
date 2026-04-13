@@ -50,6 +50,12 @@ if [[ "${DEBUG}" == "true" || "${DEBUG}" == "1" ]]; then
 fi
 
 # ============================================================================
+# Configuration (must be before dependency check for LOG_FILE)
+# ============================================================================
+LOG_FILE="cleanup_$(date +%Y%m%d_%H%M%S).log"
+CLUSTER_NAME="ai-spot-cluster"
+
+# ============================================================================
 # Dependency Validation
 # ============================================================================
 check_deps() {
@@ -64,12 +70,6 @@ check_deps() {
 
 # Validate dependencies before proceeding
 check_deps
-
-# ============================================================================
-# Configuration
-# ============================================================================
-CLUSTER_NAME="ai-spot-cluster"
-LOG_FILE="cleanup_$(date +%Y%m%d_%H%M%S).log"
 
 # Auto-detect cluster region if not specified via environment variable
 if [[ -z "$REGION" ]]; then
