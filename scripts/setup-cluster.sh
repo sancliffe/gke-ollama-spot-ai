@@ -137,7 +137,7 @@ log_success "KEDA operator installed."
 log_info "Installing KEDA HTTP Add-on via Helm..."
 # Add KEDA Helm repository
 helm repo add kedacore https://kedacore.github.io/charts
-helm repo update --wait
+helm repo update
 
 # Install HTTP add-on
 helm install http-add-on kedacore/keda-add-ons-http \
