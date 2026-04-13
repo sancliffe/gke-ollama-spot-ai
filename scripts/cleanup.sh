@@ -114,9 +114,21 @@ echo ""
 # Step 5: Delete the GKE Cluster
 log_info "Step 5/6: Deleting GKE Cluster '$CLUSTER_NAME'..."
 log_info "Cluster deletion usually takes 5-10 minutes. Waiting..."
-gcloud container clusters delete "$CLUSTER_NAME" \
-    --region "$REGION" \
-    --quiet
+MAX_RETRIES=3
+RETRY_COUNT=0
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if gcloud container clusters delete "$CLUSTER_NAME" --region "$REGION" --quiet; then
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT+1))
+    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+        log_warn "Cluster deletion failed (likely due to a concurrent operation). Retrying in 30 seconds... ($RETRY_COUNT/$MAX_RETRIES)"
+        sleep 30
+    else
+        log_error "Failed to delete cluster after $MAX_RETRIES attempts."
+        exit 1
+    fi
+done
 log_success "GKE Cluster '$CLUSTER_NAME' deleted."
 echo ""
 
