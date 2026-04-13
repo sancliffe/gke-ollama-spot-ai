@@ -157,7 +157,7 @@ while [[ $retry_count -lt $max_retries ]]; do
        kubectl get deployment keda-http-add-on-operator -n keda &>/dev/null; then
         break
     fi
-    ((retry_count++))
+    ((retry_count++)) || true
     if [[ $retry_count -eq $max_retries ]]; then
         log_warn "Deployments not created yet. Proceeding with wait (may timeout if still not ready)."
     else
