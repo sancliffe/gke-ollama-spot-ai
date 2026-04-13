@@ -66,12 +66,13 @@ check_deps() {
 # Configuration
 # ============================================================================
 CLUSTER_NAME="ai-spot-cluster"
+# FIXED: Removed the hardcoded REGION="us-central1" that followed this line
 REGION="${REGION:-us-central1}"  # Respect REGION environment variable; default to us-central1
 LOG_FILE="cleanup_$(date +%Y%m%d_%H%M%S).log"
 
 SECONDS=0
 
-log_warn "Starting complete teardown of cluster '$CLUSTER_NAME'."
+log_warn "Starting complete teardown of cluster '$CLUSTER_NAME' in region '$REGION'."
 log_warn "This will delete all resources, persistent data, and the cluster."
 log_info "Proceeding in 10 seconds... (Ctrl+C to cancel)"
 sleep 10
@@ -84,14 +85,12 @@ echo ""
 
 # Step 1: Delete KEDA autoscaling components
 log_info "Step 1/6: Deleting KEDA autoscaling resources..."
-# HTTPScaledObject is a custom resource from KEDA HTTP add-on
 kubectl delete httpscaledobject.http.keda.sh --all --ignore-not-found
 log_success "KEDA resources deleted."
 echo ""
 
 # Step 2: Delete Deployments and Services  
 log_info "Step 2/6: Deleting Kubernetes Services and Deployments..."
-# Deleting LoadBalancer services is critical—they incur charges even without pods
 kubectl delete service --all --ignore-not-found
 kubectl delete deployment --all --ignore-not-found
 log_success "Services and Deployments deleted."
@@ -99,24 +98,16 @@ echo ""
 
 # Step 3: Delete Persistent Volume Claims
 log_info "Step 3/6: Deleting Persistent Volume Claims..."
-# CRITICAL: Deleting PVCs frees persistent disks. Without this,
-# the 50GB model storage disk remains and continues incurring charges
 kubectl delete pvc --all --ignore-not-found
 log_success "PVCs deleted."
 echo ""
 
 # Step 4: Uninstall KEDA and HTTP Add-on
 log_info "Step 4/6: Uninstalling KEDA and HTTP Add-on components..."
-# Must uninstall before cluster deletion to clean up CRDs and webhooks
-
-# Uninstall KEDA HTTP Add-on via Helm (installed via Helm chart)
 if helm status http-add-on -n keda &>/dev/null; then
     helm uninstall http-add-on --namespace keda
 fi
-
-# Uninstall KEDA core via kubectl (installed via direct manifest)
 kubectl delete -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda-2.13.0.yaml --ignore-not-found
-
 log_success "KEDA components uninstalled."
 echo ""
 
@@ -131,7 +122,7 @@ echo ""
 
 # Step 6: Final check and cleanup of orphaned disks
 log_info "Step 6/6: Checking for orphaned persistent disks..."
-# Filter: zone matches region AND disk has no users (not attached)
+# Filter matches the resolved REGION
 ORPHANED_DISKS_INFO=$(gcloud compute disks list --filter="zone:($REGION*) AND -users:*" --format="value(name,zone.basename())")
 
 if [ -z "$ORPHANED_DISKS_INFO" ]; then
