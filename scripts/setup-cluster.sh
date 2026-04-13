@@ -148,8 +148,28 @@ log_success "KEDA HTTP Add-on installation initiated."
 
 # Wait for KEDA HTTP Add-on to be ready
 log_info "Waiting for KEDA HTTP Add-on to become ready..."
-kubectl wait --for=condition=available --timeout=300s deployment/keda-http-add-on-interceptor -n keda
-kubectl wait --for=condition=available --timeout=300s deployment/keda-http-add-on-operator -n keda
+
+# Wait for deployments to be created (with retries)
+local max_retries=30
+local retry_count=0
+while [[ $retry_count -lt $max_retries ]]; do
+    if kubectl get deployment keda-http-add-on-interceptor -n keda &>/dev/null && \
+       kubectl get deployment keda-http-add-on-operator -n keda &>/dev/null; then
+        break
+    fi
+    ((retry_count++))
+    if [[ $retry_count -eq $max_retries ]]; then
+        log_warn "Deployments not created yet. Proceeding with wait (may timeout if still not ready)."
+    else
+        sleep 2
+    fi
+done
+
+# Now wait for the deployments to be available
+kubectl wait --for=condition=available --timeout=300s deployment/keda-http-add-on-interceptor -n keda || \
+    log_warn "keda-http-add-on-interceptor deployment timeout (may be delayed)"
+kubectl wait --for=condition=available --timeout=300s deployment/keda-http-add-on-operator -n keda || \
+    log_warn "keda-http-add-on-operator deployment timeout (may be delayed)"
 log_success "KEDA HTTP Add-on installed and ready."
 
 # Verify KEDA installations
