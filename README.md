@@ -1,4 +1,4 @@
-Hey, just wanted to let you know that development on this project has stopped. Turns out I ran out of free credits while using Google Cloud to test the deployment.
+Hey, just wanted to let you know that development on this project has stopped. Turns out I ran out of free credits while using Google Cloud to test the deployment. The code that is currently checked doesn't work. I refactored it after tagging a beta and there are now issues. The code tagged and released as v1.0.0-beta worked during the last deployment test.
 
 GKE Autopilot: Cost-Optimized AI Inference with Ollama
 
