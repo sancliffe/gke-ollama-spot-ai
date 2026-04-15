@@ -1,3 +1,5 @@
+Hey, just wanted to let you know that development on this project has stopped. Turns out I ran out of free credits while using Google Cloud to test the deployment.
+
 GKE Autopilot: Cost-Optimized AI Inference with Ollama
 
 **Production-ready deployment of Ollama on GKE using Spot VMs with KEDA autoscaling for near-zero idle costs.**
